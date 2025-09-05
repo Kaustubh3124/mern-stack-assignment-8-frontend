@@ -2,110 +2,105 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import TaskForm from './components/TaskForm.js';
 import TaskList from './components/TaskList.js';
-import './App.css'; 
+import './App.css';
 
-
+// The root component that holds the main application state and logic.
 function App() {
     const [tasks, setTasks] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // Start with loading true for initial fetch
     const [error, setError] = useState(null);
-    const [filterStatus, setFilterStatus] = useState('all'); 
+    const [filterStatus, setFilterStatus] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Base URL for API calls. IMPORTANT: Change this for deployment!
-    // For local development, 'proxy' in package.json handles this.
-    // For Netlify deployment, replace this with your Render backend URL.
-   const API_BASE_URL = process.env.REACT_APP_API_URL ||'http://localhost:5000';
+    // Central API instance. Using an env variable is best practice.
+    const apiClient = axios.create({
+        baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+    });
+
+    // Fetches tasks from the backend based on current filters and search query.
     const fetchTasks = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            let url = `${API_BASE_URL}/api/tasks`; 
-
-            const params = {};
-            
+            const params = new URLSearchParams();
             if (filterStatus !== 'all') {
-                params.status = filterStatus;
-            }
-            
-            if (searchQuery) {
-                url = `${API_BASE_URL}/api/tasks/search`;
-                params.query = searchQuery;
+                params.append('status', filterStatus);
             }
 
-            const response = await axios.get(url, { params });
-            
+            let url = '/api/tasks';
+            if (searchQuery) {
+                url = '/api/tasks/search';
+                params.append('query', searchQuery);
+            }
+
+            const response = await apiClient.get(url, { params });
             setTasks(response.data.data);
         } catch (err) {
             console.error('Failed to fetch tasks:', err);
-            setError(err.response ? err.response.data.error : 'Network Error');
+            setError(err.response?.data?.error || 'Could not connect to the server.');
         } finally {
             setLoading(false);
         }
-    }, [filterStatus, searchQuery]); 
+    }, [searchQuery, filterStatus, apiClient]); // apiClient is stable
 
+    // Effect to re-fetch tasks whenever filters or search query change.
     useEffect(() => {
         fetchTasks();
     }, [fetchTasks]);
 
-    const addTask = async (taskData) => {
-        setLoading(true);
+    // Generic handler for all API operations to reduce boilerplate.
+    const handleApiCall = async (apiCall, successCallback) => {
         setError(null);
         try {
-            const response = await axios.post(`${API_BASE_URL}/api/tasks`, taskData);
-            setTasks(prevTasks => [...prevTasks, response.data.data]);
+            const response = await apiCall();
+            successCallback(response.data.data);
         } catch (err) {
-            console.error('Failed to add task:', err);
-            setError(err.response ? err.response.data.error : 'Network Error');
-        } finally {
-            setLoading(false);
+            console.error('API call failed:', err);
+            setError(err.response?.data?.error || 'An unexpected error occurred.');
         }
     };
 
-    const updateTask = async (id, updatedData) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await axios.patch(`${API_BASE_URL}/api/tasks/${id}`, updatedData);
-            setTasks(prevTasks =>
-                prevTasks.map(task => (task._id === id ? response.data.data : task))
-            );
-        } catch (err) {
-            console.error('Failed to update task:', err);
-            setError(err.response ? err.response.data.error : 'Network Error');
-        } finally {
-            setLoading(false);
-        }
+    const addTask = (taskData) => {
+        handleApiCall(
+            () => apiClient.post('/api/tasks', taskData),
+            (newTask) => setTasks(prevTasks => [...prevTasks, newTask])
+        );
     };
 
-    const deleteTask = async (id) => {
-        setLoading(true);
-        setError(null);
-        try {
-            await axios.delete(`${API_BASE_URL}/api/tasks/${id}`);
-            setTasks(prevTasks => prevTasks.filter(task => task._id !== id));
-        } catch (err) {
-            console.error('Failed to delete task:', err);
-            setError(err.response ? err.response.data.error : 'Network Error');
-        } finally {
-            setLoading(false);
-        }
+    const updateTask = (id, updatedData) => {
+        handleApiCall(
+            () => apiClient.patch(`/api/tasks/${id}`, updatedData),
+            (updatedTask) => setTasks(prevTasks =>
+                prevTasks.map(task => (task._id === id ? updatedTask : task))
+            )
+        );
     };
 
-    const toggleComplete = async (id, isCompleted) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await axios.patch(`${API_BASE_URL}/api/tasks/${id}/status`, { isCompleted: !isCompleted });
-            setTasks(prevTasks =>
-                prevTasks.map(task => (task._id === id ? response.data.data : task))
-            );
-        } catch (err) {
-            console.error('Failed to toggle status:', err);
-            setError(err.response ? err.response.data.error : 'Network Error');
-        } finally {
-            setLoading(false);
+    const deleteTask = (id) => {
+        handleApiCall(
+            () => apiClient.delete(`/api/tasks/${id}`),
+            () => setTasks(prevTasks => prevTasks.filter(task => task._id !== id))
+        );
+    };
+    
+    // Display logic for loading, error, or no tasks states.
+    const renderContent = () => {
+        if (loading) {
+            return <div className="message loading">Loading tasks...</div>;
         }
+        if (error) {
+            return <div className="message error">Error: {error}</div>;
+        }
+        if (tasks.length === 0) {
+            return <div className="message no-tasks">No tasks found. Create one above!</div>;
+        }
+        return (
+            <TaskList
+                tasks={tasks}
+                onUpdate={updateTask}
+                onDelete={deleteTask}
+            />
+        );
     };
 
     return (
@@ -129,28 +124,16 @@ function App() {
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="filter-select"
                     >
-                        <option value="all">All Tasks</option>
-                        <option value="pending">Pending Tasks</option>
-                        <option value="completed">Completed Tasks</option>
+                        <option value="all">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="completed">Completed</option>
                     </select>
                 </div>
 
-                {loading && <div className="message loading">Loading tasks...</div>}
-                {error && <div className="message error">Error: {error}</div>}
-
-                {/* {!loading && !error && tasks && (
-                    <div className="message no-tasks">No tasks found.</div>
-                )} */}
-
-                <TaskList
-                    tasks={tasks}
-                    onUpdate={updateTask}
-                    onDelete={deleteTask}
-                    onToggleComplete={toggleComplete}
-                />
+                {renderContent()}
             </main>
             <footer className="App-footer">
-                <p>&copy; 2025 MERN To-Do App. All rights reserved.</p>
+                <p>&copy; {new Date().getFullYear()} MERN To-Do App</p>
             </footer>
         </div>
     );

@@ -1,42 +1,40 @@
 import React, { useState } from 'react';
-import TaskItem from './TaskItem'; 
-import TaskForm from './TaskForm'; 
+import TaskItem from './TaskItem';
+import TaskForm from './TaskForm';
 
-function TaskList({ tasks, onUpdate, onDelete, onToggleComplete }) {
-    const [editingTask, setEditingTask] = useState(null); 
+// Displays the list of tasks and handles the editing modal.
+function TaskList({ tasks, onUpdate, onDelete }) {
+    const [editingTask, setEditingTask] = useState(null);
 
-    const handleEditClick = (task) => {
-        setEditingTask(task); 
-    };
-
-    const handleUpdateSubmit = (updatedData) => {
-        
+    // When an update is submitted from the modal form, call the main update function.
+    const handleUpdate = (updatedData) => {
         onUpdate(editingTask._id, updatedData);
-        setEditingTask(null); 
+        setEditingTask(null); // Close the modal
     };
 
     return (
         <div className="task-list-container">
-            {/* Modal for editing tasks */}
             {editingTask && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <TaskForm onSubmit={handleUpdateSubmit} initialData={editingTask} />
-                        <button className="btn-secondary" onClick={() => setEditingTask(null)}>Cancel Edit</button>
+                <div className="modal-overlay" onClick={() => setEditingTask(null)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <TaskForm onSubmit={handleUpdate} initialData={editingTask} />
+                        <button className="btn-secondary" onClick={() => setEditingTask(null)}>
+                            Cancel
+                        </button>
                     </div>
                 </div>
             )}
 
             <h2>Your Tasks</h2>
             <div className="task-list">
-                {/* Map through tasks and render TaskItem for each */}
                 {tasks.map(task => (
                     <TaskItem
-                        key={task._id} 
+                        key={task._id}
                         task={task}
-                        onEdit={handleEditClick}
+                        onEdit={() => setEditingTask(task)}
                         onDelete={onDelete}
-                        onToggleComplete={onToggleComplete}
+                        // Pass the onUpdate function down to handle toggling completion
+                        onUpdate={onUpdate}
                     />
                 ))}
             </div>
