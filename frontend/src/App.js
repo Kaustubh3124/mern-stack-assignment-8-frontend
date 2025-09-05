@@ -13,9 +13,18 @@ function App() {
     const [searchQuery, setSearchQuery] = useState('');
 
     // Central API instance. Using an env variable is best practice.
-    const apiClient = axios.create({
-        baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
-    });
+  // src/App.js -> The corrected code
+
+// Central API instance. Using an env variable is best practice.
+const apiClient = axios.create({
+    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+    headers: {
+        // These headers tell the browser not to cache API requests.
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+    },
+});
 
     // Fetches tasks from the backend based on current filters and search query.
     const fetchTasks = useCallback(async () => {
