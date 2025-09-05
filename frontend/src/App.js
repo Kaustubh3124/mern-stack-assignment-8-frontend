@@ -42,7 +42,7 @@ const apiClient = axios.create({
                 params.append('query', searchQuery);
             }
 
-            const response = await apiClient.get(url, { params });
+            const response = await axios.get(`${API_URL}/api/tasks`);
             setTasks(response.data.data);
         } catch (err) {
             console.error('Failed to fetch tasks:', err);
